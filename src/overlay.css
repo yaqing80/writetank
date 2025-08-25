@@ -1,0 +1,94 @@
+/* styles for Q&A + Auto-coach panels */
+
+/* WriteTank — Panel Styles (dark, modern, minimal) */
+#wt-qa, #wt-coach {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    width: 380px;
+    max-height: 52vh;
+    background: #0b0b0e;
+    color: #eaeaea;
+    border: 1px solid #2a2a2e;
+    border-radius: 12px;
+    box-shadow: 0 12px 28px rgba(0,0,0,.35);
+    font: 13px/1.5 Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif;
+    z-index: 2147483647;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #wt-coach { right: 418px; } /* nest beside QA */
+  
+  .wt-hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #11131a;
+    padding: 8px 10px;
+    cursor: move;
+    font-weight: 600;
+    border-bottom: 1px solid #1c1f29;
+  }
+  .wt-sub { color: #a8a8b3; font-weight: 400; }
+  
+  #wt-qa textarea {
+    width: 100%;
+    background: #14161c;
+    color: #eaeaea;
+    border: 1px solid #23232a;
+    border-radius: 8px;
+    padding: 8px;
+    margin: 8px 10px 6px;
+    resize: vertical;
+  }
+  
+  .wt-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+  }
+  
+  .wt-chk { color: #c8c8d2; }
+  
+  #wt-qa button, #wt-coach button {
+    background: #1f1f25;
+    color: #eaeaea;
+    border: 1px solid #2b2b33;
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: transform .06s ease, box-shadow .12s ease, background .12s ease;
+  }
+  #wt-qa button:hover, #wt-coach button:hover {
+    background: #2a2a31;
+    box-shadow: 0 4px 14px rgba(0,0,0,.25);
+    transform: translateY(-1px);
+  }
+  
+  .wt-out {
+    margin: 6px 10px;
+    padding: 10px;
+    background: #11131a;
+    border: 1px solid #23232a;
+    border-radius: 8px;
+    overflow: auto;
+    max-height: 32vh;
+    white-space: pre-wrap;
+  }
+  
+  .wt-toast {
+    position: fixed;
+    right: 26px;
+    bottom: 80px;
+    background: #11131a;
+    color: #eaeaea;
+    border: 1px solid #2a2a2e;
+    border-radius: 10px;
+    padding: 8px 10px;
+    box-shadow: 0 8px 22px rgba(0,0,0,.32);
+    z-index: 2147483647;
+    font: 12px/1.5 Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif;
+  }
