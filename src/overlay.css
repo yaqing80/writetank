@@ -1,7 +1,7 @@
-/* styles for Q&A + Auto-coach panels */
+/* styles for combined WriteTank panel */
 
 /* WriteTank — Panel Styles (dark, modern, minimal) */
-#wt-qa, #wt-coach {
+#wt-panel {
     position: fixed;
     right: 18px;
     bottom: 18px;
@@ -18,7 +18,6 @@
     flex-direction: column;
     overflow: hidden;
   }
-  #wt-coach { right: 418px; } /* nest beside QA */
   
   .wt-hdr {
     display: flex;
@@ -30,9 +29,37 @@
     font-weight: 600;
     border-bottom: 1px solid #1c1f29;
   }
+  
+  .wt-tabs {
+    display: flex;
+    gap: 4px;
+  }
+  
+  .wt-tab {
+    background: none;
+    border: none;
+    color: #a8a8b3;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  
+  .wt-tab:hover {
+    background: #23232a;
+    color: #eaeaea;
+  }
+  
+  .wt-tab.active {
+    background: #646cff;
+    color: white;
+  }
+  
   .wt-sub { color: #a8a8b3; font-weight: 400; }
   
-  #wt-qa textarea {
+  #wt-panel textarea {
     width: 100%;
     background: #14161c;
     color: #eaeaea;
@@ -41,6 +68,9 @@
     padding: 8px;
     margin: 8px 10px 6px;
     resize: vertical;
+    font-size: 12px;
+    min-height: 40px;
+    max-height: 80px;
   }
   
   .wt-row {
@@ -53,7 +83,7 @@
   
   .wt-chk { color: #c8c8d2; }
   
-  #wt-qa button, #wt-coach button {
+  #wt-panel button {
     background: #1f1f25;
     color: #eaeaea;
     border: 1px solid #2b2b33;
@@ -62,7 +92,7 @@
     cursor: pointer;
     transition: transform .06s ease, box-shadow .12s ease, background .12s ease;
   }
-  #wt-qa button:hover, #wt-coach button:hover {
+  #wt-panel button:hover {
     background: #2a2a31;
     box-shadow: 0 4px 14px rgba(0,0,0,.25);
     transform: translateY(-1px);

@@ -94,3 +94,25 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* Icon references in CSS */
+.icon-small {
+  background-image: url('icons/icon_1x.png');
+  background-size: 16px 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.icon-medium {
+  background-image: url('icons/icon_2x.png');
+  background-size: 32px 32px;
+  width: 32px;
+  height: 32px;
+}
+
+.icon-large {
+  background-image: url('icons/icon_3x.png');
+  background-size: 48px 48px;
+  width: 48px;
+  height: 48px;
+}

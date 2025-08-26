@@ -1,59 +1,75 @@
 // injects panels into Overleaf page
 
 // WriteTank — Content Script
-// - Injects Q&A and Auto-coach panels
+// - Injects combined Q&A and Auto-coach panel
 // - Grabs selection or editor text from Overleaf
 // - Sends requests to background and renders answers
 
-let qaPanel: HTMLElement | null = null;
-let coachPanel: HTMLElement | null = null;
+let writeTankPanel: HTMLElement | null = null;
 
 function injectPanels() {
-  if (!qaPanel) {
-    qaPanel = document.createElement('div');
-    qaPanel.id = 'wt-qa';
-    qaPanel.innerHTML = `
+  if (!writeTankPanel) {
+    writeTankPanel = document.createElement('div');
+    writeTankPanel.id = 'wt-panel';
+    writeTankPanel.innerHTML = `
       <div class="wt-hdr">
-        <span>WriteTank — Q&A</span>
+        <span>WriteTank</span>
+        <div class="wt-tabs">
+          <button class="wt-tab active" data-tab="qa">Q&A</button>
+          <button class="wt-tab" data-tab="coach">Coach</button>
+        </div>
       </div>
-      <textarea id="wt-q" rows="3" placeholder="Ask a question…"></textarea>
-      <div class="wt-row">
-        <label class="wt-chk"><input type="checkbox" id="wt-useSel" checked> Use selection</label>
-        <button id="wt-ask">Ask</button>
+      
+      <div class="wt-content" id="wt-qa-content">
+        <textarea id="wt-q" rows="2" placeholder="Ask a question…"></textarea>
+        <div class="wt-row">
+          <label class="wt-chk"><input type="checkbox" id="wt-useSel" checked> Use selection</label>
+          <button id="wt-ask">Ask</button>
+        </div>
+        <pre id="wt-a" class="wt-out" aria-live="polite"></pre>
+        <div class="wt-row">
+          <button id="wt-copy">Copy</button>
+        </div>
       </div>
-      <pre id="wt-a" class="wt-out" aria-live="polite"></pre>
-      <div class="wt-row">
-        <button id="wt-copy">Copy</button>
+      
+      <div class="wt-content" id="wt-coach-content" style="display: none;">
+        <pre id="wt-coach-out" class="wt-out" aria-live="polite">(no suggestions yet)</pre>
+        <div class="wt-row">
+          <button id="wt-run">Run now</button>
+          <button id="wt-pause">Pause</button>
+          <span id="wt-time" class="wt-sub"></span>
+        </div>
       </div>
     `;
-    document.documentElement.appendChild(qaPanel);
+    document.documentElement.appendChild(writeTankPanel);
 
-    qaPanel.querySelector<HTMLButtonElement>('#wt-ask')!.onclick = onAsk;
-    qaPanel.querySelector<HTMLButtonElement>('#wt-copy')!.onclick = () => copyText((qaPanel!.querySelector('#wt-a') as HTMLElement).textContent || '');
-    makeDraggable(qaPanel, '.wt-hdr');
-  }
-
-  if (!coachPanel) {
-    coachPanel = document.createElement('div');
-    coachPanel.id = 'wt-coach';
-    coachPanel.innerHTML = `
-      <div class="wt-hdr">
-        <span>WriteTank — Coach</span>
-        <span id="wt-time" class="wt-sub"></span>
-      </div>
-      <pre id="wt-coach-out" class="wt-out" aria-live="polite">(no suggestions yet)</pre>
-      <div class="wt-row">
-        <button id="wt-run">Run now</button>
-        <button id="wt-pause">Pause</button>
-      </div>
-    `;
-    document.documentElement.appendChild(coachPanel);
-
-    coachPanel.querySelector<HTMLButtonElement>('#wt-run')!.onclick = () => chrome.runtime.sendMessage({ cmd: 'run-now' });
-    coachPanel.querySelector<HTMLButtonElement>('#wt-pause')!.onclick = togglePause;
-    makeDraggable(coachPanel, '.wt-hdr');
+    // Wire up event handlers
+    writeTankPanel.querySelector<HTMLButtonElement>('#wt-ask')!.onclick = onAsk;
+    writeTankPanel.querySelector<HTMLButtonElement>('#wt-copy')!.onclick = () => copyText((writeTankPanel!.querySelector('#wt-a') as HTMLElement).textContent || '');
+    writeTankPanel.querySelector<HTMLButtonElement>('#wt-run')!.onclick = () => chrome.runtime.sendMessage({ cmd: 'run-now' });
+    writeTankPanel.querySelector<HTMLButtonElement>('#wt-pause')!.onclick = togglePause;
+    
+    // Tab switching
+    writeTankPanel.querySelectorAll('.wt-tab').forEach(tab => {
+      tab.addEventListener('click', () => switchTab(tab.getAttribute('data-tab')!));
+    });
+    
+    makeDraggable(writeTankPanel, '.wt-hdr');
     refreshPauseLabel();
   }
+}
+
+function switchTab(tabName: string) {
+  // Update tab buttons
+  writeTankPanel!.querySelectorAll('.wt-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.getAttribute('data-tab') === tabName);
+  });
+  
+  // Show/hide content
+  writeTankPanel!.querySelectorAll('.wt-content').forEach(content => {
+    (content as HTMLElement).style.display = 'none';
+  });
+  (writeTankPanel!.querySelector(`#wt-${tabName}-content`) as HTMLElement)!.style.display = 'block';
 }
 
 function makeDraggable(el: HTMLElement, handleSel: string) {
@@ -73,8 +89,8 @@ function makeDraggable(el: HTMLElement, handleSel: string) {
 }
 
 async function onAsk() {
-  const qEl = qaPanel!.querySelector<HTMLTextAreaElement>('#wt-q')!;
-  const useSel = qaPanel!.querySelector<HTMLInputElement>('#wt-useSel')!.checked;
+  const qEl = writeTankPanel!.querySelector<HTMLTextAreaElement>('#wt-q')!;
+  const useSel = writeTankPanel!.querySelector<HTMLInputElement>('#wt-useSel')!.checked;
   const question = (qEl.value || '').trim();
   if (!question) {
     renderQA('(enter a question)'); return;
@@ -86,12 +102,12 @@ async function onAsk() {
 }
 
 function renderQA(text: string) {
-  (qaPanel!.querySelector('#wt-a') as HTMLElement).textContent = text;
+  (writeTankPanel!.querySelector('#wt-a') as HTMLElement).textContent = text;
 }
 
 function renderCoach(text: string, ts?: number) {
-  (coachPanel!.querySelector('#wt-coach-out') as HTMLElement).textContent = text || '(no suggestions)';
-  if (ts) (coachPanel!.querySelector('#wt-time') as HTMLElement).textContent = `Updated ${new Date(ts).toLocaleTimeString()}`;
+  (writeTankPanel!.querySelector('#wt-coach-out') as HTMLElement).textContent = text || '(no suggestions)';
+  if (ts) (writeTankPanel!.querySelector('#wt-time') as HTMLElement).textContent = `Updated ${new Date(ts).toLocaleTimeString()}`;
 }
 
 function copyText(t: string) {
@@ -154,7 +170,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // Pause/Resume helpers
 async function refreshPauseLabel() {
   const s = await chrome.runtime.sendMessage({ cmd: 'settings:get' });
-  const b = coachPanel!.querySelector<HTMLButtonElement>('#wt-pause')!;
+  const b = writeTankPanel!.querySelector<HTMLButtonElement>('#wt-pause')!;
   b.textContent = s?.paused ? 'Resume' : 'Pause';
 }
 async function togglePause() {

@@ -8,7 +8,7 @@
 
 type Settings = {
     endpoint: string; // e.g. http://localhost:11434
-    model: string;    // e.g. gpt-oss:20b (swap to mistral:instruct during dev)
+    model: string;    // e.g. gpt-oss:20b
     intervalMin: number; // 5–15 sensible range
     paused: boolean;
   };
@@ -20,35 +20,40 @@ type Settings = {
     paused: true, // user opts in
   };
   
-  const QA_PROMPT = (context: string, question: string) => `
-  Answer directly and only with the final result (no reasoning).
-  Respond in LaTeX. Keep to ≤10 lines.
-  Prefer \\begin{itemize}...\\end{itemize} or \\paragraph{} where suitable.
-  Use \\cite{TODO} and \\ref{TODO} placeholders if needed.
+  // --- System prompt (short = faster, stricter)
+  const SYSTEM_PROMPT = `
+  You are WriteTank, a local LaTeX writing assistant.
+  - Do NOT show reasoning.
+  - Output ONLY the final LaTeX.
+  - Keep answers concise (≤10 lines).
+  - Prefer \\paragraph{} and \\begin{itemize}...\\end{itemize}.
+  - Use \\cite{TODO} / \\ref{TODO} placeholders when needed.
+  `.trim();
   
+  // --- User prompts
+  const QA_PROMPT = (context: string, question: string) => `
   Context:
   ${context}
   
   Question:
   ${question}
   
-  Answer (LaTeX only):
+  Answer in LaTeX only (≤10 lines).
   `.trim();
   
   const COACH_PROMPT = (snippet: string) => `
-  No reasoning. Return these exact blocks in LaTeX:
-  
-  1) \\paragraph{Structure} One sentence describing the recommended paragraph plan.
-  2) \\begin{itemize} 3–6 concrete details to add \\end{itemize}
-  3) A polished paragraph (≤12 lines).
-  
-  Flag missing \\label/\\ref/\\cite with TODO placeholders.
-  
   Snippet:
   ${snippet}
+  
+  Return exactly:
+  1) \\paragraph{Structure} one sentence
+  2) \\begin{itemize} 3–6 concrete details \\end{itemize}
+  3) A polished LaTeX paragraph (≤12 lines)
+  Flag missing \\label/\\ref/\\cite with TODO.
   `.trim();
   
   // --- Utilities
+  
   async function getSettings(): Promise<Settings> {
     const s = await chrome.storage.local.get(DEFAULTS);
     return { ...DEFAULTS, ...s };
@@ -67,29 +72,51 @@ type Settings = {
     }
   }
   
-  async function callOllama(prompt: string): Promise<string> {
+  // Trim incoming text to keep latency under control
+  function trimChars(s: string, max = 3000) {
+    if (!s) return '';
+    return s.length > max ? s.slice(0, max) : s;
+  }
+  
+  // Chat call with system prompt + strict caps
+  async function ollamaChat({
+    system,
+    user,
+    numPredict = 180,
+    numCtx = 2048,
+  }: {
+    system: string;
+    user: string;
+    numPredict?: number;
+    numCtx?: number;
+  }): Promise<string> {
     const { endpoint, model } = await getSettings();
-    const url = `${endpoint.replace(/\/$/, '')}/api/generate`;
+    const url = `${endpoint.replace(/\/$/, '')}/api/chat`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model,
-        prompt,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
         stream: false,
         keep_alive: '30m',
         options: {
-          num_predict: 200,
-          num_ctx: 2048,
+          num_predict: numPredict,  // hard cap output tokens
+          num_ctx: numCtx,          // keep modest for speed
           temperature: 0.2,
           top_p: 0.9,
           repeat_penalty: 1.1,
+          // Optional stop sequences to cut tails
+          stop: ["\\end{itemize}\n\n", "\n\n\n"]
         },
       }),
     });
     if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
     const data = await res.json();
-    return data?.response ?? '';
+    return data?.message?.content ?? '';
   }
   
   async function getActiveOverleafTab(): Promise<chrome.tabs.Tab | null> {
@@ -101,7 +128,7 @@ type Settings = {
     return tabs[0] ?? null;
   }
   
-  // --- Lifecycle: initialize defaults & alarm
+  // --- Lifecycle
   chrome.runtime.onInstalled.addListener(async () => {
     await setSettings({}); // write defaults if missing
     await ensureAlarm();
@@ -109,7 +136,7 @@ type Settings = {
   chrome.runtime.onStartup.addListener(ensureAlarm);
   
   // --- Messaging
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       if (msg?.cmd === 'settings:get') {
         sendResponse(await getSettings());
@@ -121,9 +148,15 @@ type Settings = {
         return;
       }
       if (msg?.cmd === 'qa') {
-        const { text, question } = msg;
+        const context = trimChars(msg?.text ?? '', 3000);
+        const question = (msg?.question ?? '').trim();
         try {
-          const ans = await callOllama(QA_PROMPT(text ?? '', question ?? ''));
+          const ans = await ollamaChat({
+            system: SYSTEM_PROMPT,
+            user: QA_PROMPT(context, question),
+            numPredict: 180,
+            numCtx: 2048,
+          });
           sendResponse({ ok: true, text: ans });
         } catch (e: any) {
           sendResponse({ ok: false, error: e?.message || 'Model error' });
@@ -131,9 +164,14 @@ type Settings = {
         return;
       }
       if (msg?.cmd === 'coach') {
-        const { text } = msg;
+        const snippet = trimChars(msg?.text ?? '', 3000);
         try {
-          const out = await callOllama(COACH_PROMPT(text ?? ''));
+          const out = await ollamaChat({
+            system: SYSTEM_PROMPT,
+            user: COACH_PROMPT(snippet),
+            numPredict: 220,
+            numCtx: 2048,
+          });
           sendResponse({ ok: true, text: out, updatedAt: Date.now() });
         } catch (e: any) {
           sendResponse({ ok: false, error: e?.message || 'Model error' });
@@ -151,13 +189,17 @@ type Settings = {
         return;
       }
       if (msg?.cmd === 'run-now') {
-        // ask the active Overleaf tab to provide a snippet, then run coach
         const tab = await getActiveOverleafTab();
-        if (!tab?.id) return sendResponse({ ok: false, error: 'No Overleaf tab' });
+        if (!tab?.id) { sendResponse({ ok: false, error: 'No Overleaf tab' }); return; }
         const sample = await chrome.tabs.sendMessage(tab.id, { cmd: 'grabText' }).catch(() => null);
-        if (!sample?.text) return sendResponse({ ok: false, error: 'No text' });
+        if (!sample?.text) { sendResponse({ ok: false, error: 'No text' }); return; }
         try {
-          const out = await callOllama(COACH_PROMPT(sample.text));
+          const out = await ollamaChat({
+            system: SYSTEM_PROMPT,
+            user: COACH_PROMPT(trimChars(sample.text, 3000)),
+            numPredict: 220,
+            numCtx: 2048,
+          });
           await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:answer', text: out, updatedAt: Date.now() });
           sendResponse({ ok: true });
         } catch (e: any) {
@@ -179,7 +221,12 @@ type Settings = {
     const sample = await chrome.tabs.sendMessage(tab.id, { cmd: 'grabText' }).catch(() => null);
     if (!sample?.text) return;
     try {
-      const out = await callOllama(COACH_PROMPT(sample.text));
+      const out = await ollamaChat({
+        system: SYSTEM_PROMPT,
+        user: COACH_PROMPT(trimChars(sample.text, 3000)),
+        numPredict: 220,
+        numCtx: 2048,
+      });
       await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:answer', text: out, updatedAt: Date.now() });
     } catch {
       // silently ignore on tick

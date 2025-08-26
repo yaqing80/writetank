@@ -1,5 +1,3 @@
-<!-- simple toolbar popup -->
-
 <!doctype html>
 <html>
   <head>
@@ -7,51 +5,266 @@
     <title>WriteTank</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
-      body { margin: 12px; font: 13px/1.5 Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; color:#eaeaea; background:#0b0b0e; }
-      .row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
-      .muted { color:#a8a8b3; }
-      input[type="number"], input[type="text"] {
-        background:#14161c; color:#eaeaea; border:1px solid #23232a; border-radius:8px; padding:6px 8px; width:80px;
+      body { 
+        margin:0; 
+        padding:20px; 
+        font:13px/1.5 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; 
+        color:#eaeaea; 
+        background:#0b0b0e; 
+        width:400px; 
+        min-height:500px; 
+        overflow-y:auto; 
       }
-      input[type="text"] { width: 100%; }
-      button { background:#1f1f25; color:#eaeaea; border:1px solid #2b2b33; border-radius:8px; padding:6px 10px; cursor:pointer; }
-      button:hover { background:#2a2a31; }
-      .hint { font-size:12px; color:#a8a8b3; margin-top:6px; }
-      .ok { color:#7ed321; }
-      .bad { color:#ff5e57; }
+      
+      .header { 
+        display:flex; 
+        align-items:center; 
+        gap:8px; 
+        margin-bottom:20px; 
+        padding-bottom:12px; 
+        border-bottom:1px solid #23232a; 
+      }
+      
+      .section {
+        margin-bottom: 20px;
+        padding: 16px;
+        background: #14161c;
+        border-radius: 8px;
+        border: 1px solid #23232a;
+      }
+      
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        cursor: pointer;
+        user-select: none;
+      }
+      
+      .section-title {
+        font-weight: 600;
+        color: #eaeaea;
+        font-size: 14px;
+      }
+      
+      .section-toggle {
+        background: none;
+        border: none;
+        color: #a8a8b3;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        transition: all 0.2s;
+      }
+      
+      .section-toggle:hover {
+        background: #23232a;
+        color: #eaeaea;
+      }
+      
+      .section-content {
+        display: block;
+      }
+      
+      .section-content.collapsed {
+        display: none;
+      }
+      
+      .row { 
+        display:flex; 
+        align-items:center; 
+        justify-content:space-between; 
+        gap:12px; 
+        margin-bottom:12px; 
+      }
+      
+      .row-stacked { 
+        display:flex; 
+        flex-direction:column; 
+        gap:6px; 
+        margin-bottom:12px; 
+      }
+      
+      .row-stacked label { 
+        font-size:12px; 
+        color:#a8a8b3; 
+        font-weight:500; 
+      }
+      
+      .muted { color:#a8a8b3; }
+      
+      input[type="number"], input[type="text"] { 
+        background:#1f1f25; 
+        color:#eaeaea; 
+        border:1px solid #23232a; 
+        border-radius:8px; 
+        padding:8px 12px; 
+        font-size:13px; 
+        transition:border-color .2s; 
+      }
+      
+      input[type="number"]{ width:80px; }
+      input[type="text"]{ width:100%; }
+      
+      input:focus{ 
+        outline:none; 
+        border-color:#646cff; 
+      }
+      
+      button{ 
+        background:#1f1f25; 
+        color:#eaeaea; 
+        border:1px solid #2b2b33; 
+        border-radius:8px; 
+        padding:8px 12px; 
+        cursor:pointer; 
+        font-size:13px; 
+        transition:all .2s; 
+      }
+      
+      button:hover{ 
+        background:#2a2a31; 
+        border-color:#646cff; 
+      }
+      
+      button:active{ 
+        transform:translateY(1px); 
+      }
+      
+      .button-group{ 
+        display:flex; 
+        gap:8px; 
+      }
+      
+      .hint{ 
+        font-size:12px; 
+        color:#a8a8b3; 
+        margin-top:12px; 
+        padding:8px; 
+        background:#1f1f25; 
+        border-radius:6px; 
+        border-left:3px solid #646cff; 
+      }
+      
+      .ok{ color:#7ed321; }
+      .bad{ color:#ff5e57; }
+      
+      .checkbox-row{ 
+        display:flex; 
+        align-items:center; 
+        gap:8px; 
+        margin-bottom:16px; 
+      }
+      
+      input[type="checkbox"]{ 
+        width:16px; 
+        height:16px; 
+        accent-color:#646cff; 
+      }
+      
+      .status-indicator{ 
+        display:inline-flex; 
+        align-items:center; 
+        gap:6px; 
+        padding:4px 8px; 
+        border-radius:4px; 
+        font-size:12px; 
+        font-weight:500; 
+      }
+      
+      .status-indicator.ok{ 
+        background:rgba(126,211,33,.1); 
+        color:#7ed321; 
+      }
+      
+      .status-indicator.bad{ 
+        background:rgba(255,94,87,.1); 
+        color:#ff5e57; 
+      }
+      
+      .quick-actions {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      
+      .quick-actions button {
+        flex: 1;
+        padding: 10px;
+        font-weight: 500;
+      }
     </style>
   </head>
   <body>
-    <h3 style="margin:0 0 10px 0;">WriteTank</h3>
-
-    <div class="row">
-      <label><input id="paused" type="checkbox"/> Pause Auto-coach</label>
-      <button id="run">Run now</button>
+    <div class="header">
+      <img src="icons/icon16.png" alt="WriteTank" style="width:20px;height:20px;">
+      <h3 style="margin:0;font-size:18px;">WriteTank</h3>
     </div>
 
-    <div class="row">
-      <label class="muted">Interval (min)</label>
-      <input id="interval" type="number" min="1" max="60" step="1"/>
+    <!-- Quick Actions Section -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection('quick-actions')">
+        <span class="section-title">Quick Actions</span>
+        <button class="section-toggle" id="quick-actions-toggle">▼</button>
+      </div>
+      <div class="section-content" id="quick-actions-content">
+        <div class="quick-actions">
+          <button id="run">Run Now</button>
+          <button id="test">Test Connection</button>
+        </div>
+        <div class="checkbox-row">
+          <input id="paused" type="checkbox"/>
+          <label for="paused">Pause Auto-coach</label>
+        </div>
+        <span id="status" class="status-indicator muted">Idle</span>
+      </div>
     </div>
 
-    <div class="row">
-      <label class="muted">Model</label>
-      <input id="model" type="text" placeholder="gpt-oss:20b"/>
+    <!-- Settings Section -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection('settings')">
+        <span class="section-title">Settings</span>
+        <button class="section-toggle" id="settings-toggle">▼</button>
+      </div>
+      <div class="section-content" id="settings-content">
+        <div class="row">
+          <label class="muted">Interval (min)</label>
+          <input id="interval" type="number" min="1" max="60" step="1"/>
+        </div>
+
+        <div class="row-stacked">
+          <label for="model">Model</label>
+          <input id="model" type="text" placeholder="gpt-oss:20b"/>
+        </div>
+
+        <div class="row-stacked">
+          <label for="endpoint">Endpoint</label>
+          <input id="endpoint" type="text" placeholder="http://localhost:11434"/>
+        </div>
+
+        <div class="row">
+          <button id="save">Save Settings</button>
+        </div>
+      </div>
     </div>
 
-    <div class="row">
-      <label class="muted">Endpoint</label>
-      <input id="endpoint" type="text" placeholder="http://localhost:11434"/>
-    </div>
+    <div class="hint"><strong>Local-only by default.</strong> Ensure Ollama is running on port 11434.</div>
 
-    <div class="row">
-      <button id="save">Save</button>
-      <button id="test">Test</button>
-      <span id="status" class="muted">Idle</span>
-    </div>
-
-    <div class="hint">Local-only by default. Ensure Ollama is running on port 11434.</div>
-
+    <script>
+      function toggleSection(sectionId) {
+        const content = document.getElementById(sectionId + '-content');
+        const toggle = document.getElementById(sectionId + '-toggle');
+        
+        if (content.classList.contains('collapsed')) {
+          content.classList.remove('collapsed');
+          toggle.textContent = '▼';
+        } else {
+          content.classList.add('collapsed');
+          toggle.textContent = '▶';
+        }
+      }
+    </script>
     <script type="module" src="./popup.ts"></script>
   </body>
 </html>

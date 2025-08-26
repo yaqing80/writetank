@@ -1,0 +1,248 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WriteTank Settings</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { 
+        margin: 0; 
+        padding: 40px; 
+        font: 14px/1.6 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; 
+        color: #eaeaea; 
+        background: #0b0b0e; 
+        min-height: 100vh;
+      }
+      
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      
+      .header { 
+        display: flex; 
+        align-items: center; 
+        gap: 12px; 
+        margin-bottom: 40px; 
+        padding-bottom: 20px; 
+        border-bottom: 2px solid #23232a; 
+      }
+      
+      .header h1 {
+        margin: 0;
+        font-size: 32px;
+        font-weight: 700;
+      }
+      
+      .section {
+        margin-bottom: 40px;
+        padding: 24px;
+        background: #14161c;
+        border-radius: 12px;
+        border: 1px solid #23232a;
+      }
+      
+      .section-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: #eaeaea;
+        margin-bottom: 20px;
+      }
+      
+      .form-group {
+        margin-bottom: 20px;
+      }
+      
+      .form-group label {
+        display: block;
+        font-size: 14px;
+        color: #a8a8b3;
+        font-weight: 500;
+        margin-bottom: 8px;
+      }
+      
+      .form-group input[type="text"],
+      .form-group input[type="number"] {
+        width: 100%;
+        background: #1f1f25;
+        color: #eaeaea;
+        border: 1px solid #23232a;
+        border-radius: 8px;
+        padding: 12px 16px;
+        font-size: 14px;
+        transition: border-color 0.2s;
+        box-sizing: border-box;
+      }
+      
+      .form-group input:focus {
+        outline: none;
+        border-color: #646cff;
+      }
+      
+      .form-row {
+        display: flex;
+        gap: 20px;
+        align-items: end;
+      }
+      
+      .form-row .form-group {
+        flex: 1;
+      }
+      
+      .form-row .form-group:last-child {
+        flex: 0 0 120px;
+      }
+      
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      
+      .checkbox-group input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        accent-color: #646cff;
+      }
+      
+      .checkbox-group label {
+        font-size: 16px;
+        color: #eaeaea;
+        font-weight: 500;
+        margin: 0;
+      }
+      
+      .button-group {
+        display: flex;
+        gap: 12px;
+        margin-top: 20px;
+      }
+      
+      button {
+        background: #1f1f25;
+        color: #eaeaea;
+        border: 1px solid #2b2b33;
+        border-radius: 8px;
+        padding: 12px 20px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.2s;
+      }
+      
+      button:hover {
+        background: #2a2a31;
+        border-color: #646cff;
+      }
+      
+      button.primary {
+        background: #646cff;
+        border-color: #646cff;
+        color: white;
+      }
+      
+      button.primary:hover {
+        background: #7c82ff;
+      }
+      
+      .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        margin-left: 12px;
+      }
+      
+      .status-indicator.ok {
+        background: rgba(126, 211, 33, 0.1);
+        color: #7ed321;
+      }
+      
+      .status-indicator.bad {
+        background: rgba(255, 94, 87, 0.1);
+        color: #ff5e57;
+      }
+      
+      .hint {
+        font-size: 14px;
+        color: #a8a8b3;
+        margin-top: 20px;
+        padding: 16px;
+        background: #1f1f25;
+        border-radius: 8px;
+        border-left: 4px solid #646cff;
+      }
+      
+      .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      
+      .quick-actions button {
+        padding: 16px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <img src="icons/icon16.png" alt="WriteTank" style="width:32px;height:32px;">
+        <h1>WriteTank Settings</h1>
+      </div>
+
+      <!-- Quick Actions Section -->
+      <div class="section">
+        <div class="section-title">Quick Actions</div>
+        <div class="quick-actions">
+          <button id="run">Run Now</button>
+          <button id="test">Test Connection</button>
+        </div>
+        <div class="checkbox-group">
+          <input id="paused" type="checkbox"/>
+          <label for="paused">Pause Auto-coach</label>
+        </div>
+        <span id="status" class="status-indicator">Idle</span>
+      </div>
+
+      <!-- Settings Section -->
+      <div class="section">
+        <div class="section-title">Configuration</div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="interval">Auto-coach Interval (minutes)</label>
+            <input id="interval" type="number" min="1" max="60" step="1" placeholder="5"/>
+          </div>
+          <div class="form-group">
+            <button id="save" class="primary">Save Settings</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="model">AI Model</label>
+          <input id="model" type="text" placeholder="gpt-oss:20b"/>
+        </div>
+
+        <div class="form-group">
+          <label for="endpoint">Ollama Endpoint</label>
+          <input id="endpoint" type="text" placeholder="http://localhost:11434"/>
+        </div>
+      </div>
+
+      <div class="hint">
+        <strong>Local-only by default.</strong> Ensure Ollama is running on port 11434. 
+        This page can be resized and provides full access to all WriteTank settings.
+      </div>
+    </div>
+
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>
