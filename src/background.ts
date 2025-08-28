@@ -24,9 +24,12 @@ type Settings = {
   const SYSTEM_PROMPT = `
   You are WriteTank, a local LaTeX writing assistant.
   - Do NOT show reasoning.
-  - Output ONLY the final LaTeX.
+  - For LaTeX questions: output LaTeX code.
+  - For content questions: answer naturally.
   - Keep answers concise (≤10 lines).
-  - Prefer \\paragraph{} and \\begin{itemize}...\\end{itemize}.
+  - Prefer \\paragraph{} and \\begin{itemize}...\\end{itemize}, but only use LaTeX format if needed to.
+  - Make sure syntax and grammar are correct.
+  - If an answer started with \\begin{itemize}, make sure it ends with \\end{itemize}.
   - Use \\cite{TODO} / \\ref{TODO} placeholders when needed.
   `.trim();
   
@@ -38,7 +41,9 @@ type Settings = {
   Question:
   ${question}
   
-  Answer in LaTeX only (≤10 lines).
+  If the question is about LaTeX formatting, output LaTeX code.
+  If the question is about the content or meaning, answer naturally.
+  Keep answers concise (≤10 lines).
   `.trim();
   
   const COACH_PROMPT = (snippet: string) => `
@@ -73,7 +78,7 @@ type Settings = {
   }
   
   // Trim incoming text to keep latency under control
-  function trimChars(s: string, max = 3000) {
+  function trimChars(s: string, max = 1500) {
     if (!s) return '';
     return s.length > max ? s.slice(0, max) : s;
   }
@@ -148,8 +153,9 @@ type Settings = {
         return;
       }
       if (msg?.cmd === 'qa') {
-        const context = trimChars(msg?.text ?? '', 3000);
+        const context = trimChars(msg?.text ?? '', 1500);
         const question = (msg?.question ?? '').trim();
+        console.log('QA Request:', { context: context.substring(0, 100), question });
         try {
           const ans = await ollamaChat({
             system: SYSTEM_PROMPT,
@@ -157,14 +163,16 @@ type Settings = {
             numPredict: 180,
             numCtx: 2048,
           });
+          console.log('QA Answer:', ans);
           sendResponse({ ok: true, text: ans });
         } catch (e: any) {
+          console.error('QA Error:', e);
           sendResponse({ ok: false, error: e?.message || 'Model error' });
         }
         return;
       }
       if (msg?.cmd === 'coach') {
-        const snippet = trimChars(msg?.text ?? '', 3000);
+        const snippet = trimChars(msg?.text ?? '', 1500);
         try {
           const out = await ollamaChat({
             system: SYSTEM_PROMPT,
@@ -188,6 +196,20 @@ type Settings = {
         }
         return;
       }
+      if (msg?.cmd === 'test-model') {
+        try {
+          const ans = await ollamaChat({
+            system: "You are a helpful assistant. Answer briefly.",
+            user: "What is 2+2?",
+            numPredict: 50,
+            numCtx: 512,
+          });
+          sendResponse({ ok: true, text: ans });
+        } catch (e: any) {
+          sendResponse({ ok: false, error: e?.message || 'Model error' });
+        }
+        return;
+      }
       if (msg?.cmd === 'run-now') {
         const tab = await getActiveOverleafTab();
         if (!tab?.id) { sendResponse({ ok: false, error: 'No Overleaf tab' }); return; }
@@ -196,7 +218,7 @@ type Settings = {
         try {
           const out = await ollamaChat({
             system: SYSTEM_PROMPT,
-            user: COACH_PROMPT(trimChars(sample.text, 3000)),
+            user: COACH_PROMPT(trimChars(sample.text, 1500)),
             numPredict: 220,
             numCtx: 2048,
           });
