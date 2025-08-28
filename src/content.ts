@@ -41,8 +41,11 @@ function injectPanels() {
       <div class="wt-content" id="wt-coach-content" style="display: none;">
         <pre id="wt-coach-out" class="wt-out" aria-live="polite">(no suggestions yet)</pre>
         <div class="wt-row">
-          <button id="wt-run">Run now</button>
-          <button id="wt-pause">Pause</button>
+          <div class="wt-coach-buttons">
+            <button id="wt-run">Run now</button>
+            <button id="wt-expand">More detail</button>
+            <button id="wt-pause">Pause</button>
+          </div>
           <span id="wt-time" class="wt-sub"></span>
         </div>
       </div>
@@ -53,6 +56,7 @@ function injectPanels() {
     writeTankPanel.querySelector<HTMLButtonElement>('#wt-ask')!.onclick = onAsk;
     writeTankPanel.querySelector<HTMLButtonElement>('#wt-copy')!.onclick = () => copyText((writeTankPanel!.querySelector('#wt-a') as HTMLElement).textContent || '');
     writeTankPanel.querySelector<HTMLButtonElement>('#wt-run')!.onclick = runCoachNow;
+    writeTankPanel.querySelector<HTMLButtonElement>('#wt-expand')!.onclick = expandCoach;
     writeTankPanel.querySelector<HTMLButtonElement>('#wt-pause')!.onclick = togglePause;
     
     // Tab switching
@@ -205,21 +209,61 @@ Text preview: "${sample.text.substring(0, 100)}${sample.text.length > 100 ? '...
 
 async function runCoachNow() {
   const runBtn = writeTankPanel!.querySelector<HTMLButtonElement>('#wt-run')!;
+  const expandBtn = writeTankPanel!.querySelector<HTMLButtonElement>('#wt-expand')!;
   const timeEl = writeTankPanel!.querySelector('#wt-time') as HTMLElement;
+  const coachOut = writeTankPanel!.querySelector('#wt-coach-out') as HTMLElement;
+  
   try {
+    // Clear previous output and set loading state
+    coachOut.textContent = 'Analyzing your text...';
     runBtn.disabled = true;
-    timeEl.textContent = 'Running…';
+    expandBtn.disabled = true;
+    runBtn.textContent = 'Running...';
+    timeEl.textContent = 'Scanning...';
+    
     const res = await chrome.runtime.sendMessage({ cmd: 'run-now' });
     if (res?.ok) {
-      // renderCoach will update time on message receipt; put a temporary status
-      timeEl.textContent = 'Completed';
+      // renderCoach will update time on message receipt
+      timeEl.textContent = 'Analysis complete';
     } else {
-      timeEl.textContent = `(error) ${res?.error || 'Run failed'}`;
+      timeEl.textContent = `Error: ${res?.error || 'Run failed'}`;
+      coachOut.textContent = '(analysis failed)';
     }
   } catch (e: any) {
-    timeEl.textContent = `(error) ${e?.message || e}`;
+    timeEl.textContent = `Error: ${e?.message || e}`;
+    coachOut.textContent = '(analysis failed)';
   } finally {
     runBtn.disabled = false;
+    expandBtn.disabled = false;
+    runBtn.textContent = 'Run now';
+  }
+}
+
+async function expandCoach() {
+  const btn = writeTankPanel!.querySelector<HTMLButtonElement>('#wt-expand')!;
+  const timeEl = writeTankPanel!.querySelector('#wt-time') as HTMLElement;
+  const coachOut = writeTankPanel!.querySelector('#wt-coach-out') as HTMLElement;
+  
+  btn.disabled = true;
+  btn.textContent = 'Expanding...';
+  timeEl.textContent = 'Generating detailed analysis...';
+  
+  try {
+    const sample = grabEditorText(false, 'visible');
+    const res = await chrome.runtime.sendMessage({ cmd: 'coach:expand', text: sample.text });
+    if (res?.ok) {
+      renderCoach(res.text, Date.now());
+      timeEl.textContent = 'Detailed analysis complete';
+    } else {
+      timeEl.textContent = `Error: ${res?.error || 'Expand failed'}`;
+      coachOut.textContent = '(detailed analysis failed)';
+    }
+  } catch (e: any) {
+    timeEl.textContent = `Error: ${e?.message || e}`;
+    coachOut.textContent = '(detailed analysis failed)';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'More detail';
   }
 }
 
@@ -265,6 +309,18 @@ function renderQA(text: string) {
 function renderCoach(text: string, ts?: number) {
   (writeTankPanel!.querySelector('#wt-coach-out') as HTMLElement).textContent = text || '(no suggestions)';
   if (ts) (writeTankPanel!.querySelector('#wt-time') as HTMLElement).textContent = `Updated ${new Date(ts).toLocaleTimeString()}`;
+}
+
+function renderCoachDelta(delta: string) {
+  const coachOut = writeTankPanel!.querySelector('#wt-coach-out') as HTMLElement;
+  coachOut.textContent = (coachOut.textContent || '') + delta;
+}
+
+function renderQADelta(delta: string) {
+  const qaOut = writeTankPanel!.querySelector('#wt-a') as HTMLElement;
+  if (qaOut) {
+    qaOut.textContent = (qaOut.textContent || '') + delta;
+  }
 }
 
 function copyText(t: string) {
@@ -497,6 +553,12 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.cmd === 'coach:status') {
     const timeEl = writeTankPanel!.querySelector('#wt-time') as HTMLElement;
     if (timeEl) timeEl.textContent = msg.text || '';
+  }
+  if (msg?.cmd === 'coach:answer:delta') {
+    renderCoachDelta(msg.text);
+  }
+  if (msg?.cmd === 'qa:answer:delta') {
+    renderQADelta(msg.text);
   }
   return undefined;
 });

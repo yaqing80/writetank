@@ -65,6 +65,14 @@
     flex-direction: column;
   }
   
+  /* Ensure Q&A content area has proper flex layout */
+  #wt-qa-content {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    overflow: hidden;
+  }
+  
   #wt-panel textarea {
     width: 95%;
     background: #14161c;
@@ -85,6 +93,12 @@
     align-items: center;
     gap: 8px;
     padding: 6px 10px;
+  }
+  
+  .wt-coach-buttons {
+    display: flex;
+    gap: 6px;
+    align-items: center;
   }
   
   .wt-chk { color: #c8c8d2; }
@@ -140,11 +154,39 @@
     padding: 6px 10px;
     cursor: pointer;
     transition: transform .06s ease, box-shadow .12s ease, background .12s ease;
+    min-width: 60px;
+    height: 28px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
   }
   #wt-panel button:hover {
     background: #2a2a31;
     box-shadow: 0 4px 14px rgba(0,0,0,.25);
     transform: translateY(-1px);
+  }
+  #wt-panel button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+  #wt-panel button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+  
+  /* Loading state for buttons */
+  #wt-panel button:disabled:not([data-loading="false"]) {
+    background: #2a2a31;
+    color: #a8a8b3;
+  }
+  
+  /* Status text styling */
+  #wt-time {
+    font-size: 10px;
+    font-weight: 500;
+    min-width: 80px;
+    text-align: right;
   }
   
   .wt-out {
@@ -160,9 +202,15 @@
     /* Grow to take remaining space so the buttons row stays visible */
     flex: 1 1 auto;
   }
-
-  /* Smaller font for Q&A output only */
+  
+  /* Ensure Q&A answer area can scroll while keeping copy button visible */
   #wt-a {
+    flex-grow: 1;
+    overflow: auto;
+  }
+
+  /* Smaller font for Q&A and Coach output */
+  #wt-a, #wt-coach-out {
     font-size: 12px;
     line-height: 1.45;
   }
