@@ -52,7 +52,7 @@ function injectPanels() {
     // Wire up event handlers
     writeTankPanel.querySelector<HTMLButtonElement>('#wt-ask')!.onclick = onAsk;
     writeTankPanel.querySelector<HTMLButtonElement>('#wt-copy')!.onclick = () => copyText((writeTankPanel!.querySelector('#wt-a') as HTMLElement).textContent || '');
-    writeTankPanel.querySelector<HTMLButtonElement>('#wt-run')!.onclick = () => chrome.runtime.sendMessage({ cmd: 'run-now' });
+    writeTankPanel.querySelector<HTMLButtonElement>('#wt-run')!.onclick = runCoachNow;
     writeTankPanel.querySelector<HTMLButtonElement>('#wt-pause')!.onclick = togglePause;
     
     // Tab switching
@@ -200,6 +200,26 @@ Text preview: "${sample.text.substring(0, 100)}${sample.text.length > 100 ? '...
   } catch (error) {
     console.error('QA Error:', error);
     renderQA(`(error) ${error}`);
+  }
+}
+
+async function runCoachNow() {
+  const runBtn = writeTankPanel!.querySelector<HTMLButtonElement>('#wt-run')!;
+  const timeEl = writeTankPanel!.querySelector('#wt-time') as HTMLElement;
+  try {
+    runBtn.disabled = true;
+    timeEl.textContent = 'Running…';
+    const res = await chrome.runtime.sendMessage({ cmd: 'run-now' });
+    if (res?.ok) {
+      // renderCoach will update time on message receipt; put a temporary status
+      timeEl.textContent = 'Completed';
+    } else {
+      timeEl.textContent = `(error) ${res?.error || 'Run failed'}`;
+    }
+  } catch (e: any) {
+    timeEl.textContent = `(error) ${e?.message || e}`;
+  } finally {
+    runBtn.disabled = false;
   }
 }
 
@@ -393,6 +413,12 @@ function grabEditorText(preferSelection = true, mode: 'all' | 'visible' = 'all')
           }
           const slice = lastIdx >= firstIdx ? allLines.slice(firstIdx, lastIdx + 1) : visible;
           text = (slice.length > 0 ? slice : allLines).map(n => n.innerText).join('\n');
+          if (!text.trim() && allLines.length > 0) {
+            // Fallback: take the next ~20 lines from the top of viewport
+            const start = firstIdx >= 0 ? firstIdx : 0;
+            const end = Math.min(allLines.length, start + 20);
+            text = allLines.slice(start, end).map(n => n.innerText).join('\n');
+          }
         } else {
           const lines = Array.from(cm.querySelectorAll('.cm-line, .cm-lineWrapping, .cm-lineContent')).map(n => (n as HTMLElement).innerText);
           text = lines.join('\n');
@@ -418,6 +444,11 @@ function grabEditorText(preferSelection = true, mode: 'all' | 'visible' = 'all')
               // padding only below: start from first, extend only downward
               const range = new Range(first, 0, last + extra, 0);
               text = editor.session.getTextRange(range);
+              if (!text || !text.trim()) {
+                // Fallback to a small window after the first visible row
+                const range2 = new Range(first, 0, Math.min(last + 12, first + 24), 0);
+                text = editor.session.getTextRange(range2);
+              }
             }
           } catch {}
         }
@@ -463,13 +494,18 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.cmd === 'coach:answer') {
     renderCoach(msg.text, msg.updatedAt);
   }
+  if (msg?.cmd === 'coach:status') {
+    const timeEl = writeTankPanel!.querySelector('#wt-time') as HTMLElement;
+    if (timeEl) timeEl.textContent = msg.text || '';
+  }
   return undefined;
 });
 
 // Respond to background asking for current text
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.cmd === 'grabText') {
-    const sample = grabEditorText(false);
+    const mode = msg?.mode === 'visible' ? 'visible' : 'all';
+    const sample = grabEditorText(false, mode);
     // Send only the text to maintain compatibility with background script
     sendResponse({ text: sample.text });
     return true;
@@ -481,6 +517,8 @@ async function refreshPauseLabel() {
   const s = await chrome.runtime.sendMessage({ cmd: 'settings:get' });
   const b = writeTankPanel!.querySelector<HTMLButtonElement>('#wt-pause')!;
   b.textContent = s?.paused ? 'Resume' : 'Pause';
+  const timeEl = writeTankPanel!.querySelector('#wt-time') as HTMLElement;
+  timeEl.textContent = s?.paused ? 'Auto-coach: Paused' : 'Auto-coach: On';
 }
 async function togglePause() {
   const s = await chrome.runtime.sendMessage({ cmd: 'settings:get' });

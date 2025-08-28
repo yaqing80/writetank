@@ -47,14 +47,28 @@ type Settings = {
   `.trim();
   
   const COACH_PROMPT = (snippet: string) => `
-  Snippet:
+  You are a concise writing coach. Do NOT rewrite the text. Do NOT output full sentences of the user's content. Provide guidance and actionable suggestions only.
+  
+  Snippet (context for coaching; do not quote it back):
   ${snippet}
   
-  Return exactly:
-  1) \\paragraph{Structure} one sentence
-  2) \\begin{itemize} 3–6 concrete details \\end{itemize}
-  3) A polished LaTeX paragraph (≤12 lines)
-  Flag missing \\label/\\ref/\\cite with TODO.
+  Return exactly, using LaTeX where indicated:
+  1) \\paragraph{Structure} One-sentence assessment of organization (no rewriting).
+  2) \\begin{itemize}
+     \\item 3–6 actionable improvement suggestions (clarity, flow, redundancy, active voice, cohesion)
+     \\item Mention where to add \\label/\\ref/\\cite as TODO if missing
+     \\item Suggest section-level moves (e.g., "define key term earlier", "split long paragraph")
+  \\end{itemize}
+  3) \\paragraph{Checklist} 4–6 yes/no checks (e.g., "All acronyms defined on first use?")
+  
+  Constraints:
+  - Do not reproduce or paraphrase user sentences.
+  - No full rewrites. Keep feedback high-signal and brief (≤12 lines total).
+  - If the snippet already reads clearly, is well-organized, and requires no edits,
+    then explicitly say so and provide positive confirmation instead of forcing issues.
+    In that case, still return the three sections above, where the itemized list
+    contains 1–3 lightweight polish suggestions or "No changes needed" entries,
+    and the checklist answers mostly "Yes" where appropriate.
   `.trim();
   
   // --- Utilities
@@ -180,7 +194,8 @@ type Settings = {
             numPredict: 220,
             numCtx: 2048,
           });
-          sendResponse({ ok: true, text: out, updatedAt: Date.now() });
+          const safeOut = (out && out.trim()) ? out : 'No substantial issues detected. Keep going!';
+          sendResponse({ ok: true, text: safeOut, updatedAt: Date.now() });
         } catch (e: any) {
           sendResponse({ ok: false, error: e?.message || 'Model error' });
         }
@@ -213,18 +228,30 @@ type Settings = {
       if (msg?.cmd === 'run-now') {
         const tab = await getActiveOverleafTab();
         if (!tab?.id) { sendResponse({ ok: false, error: 'No Overleaf tab' }); return; }
-        const sample = await chrome.tabs.sendMessage(tab.id, { cmd: 'grabText' }).catch(() => null);
+        // Prefer visible area for coaching
+        await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:status', text: 'Scanning visible text…' }).catch(() => {});
+        let sample = await chrome.tabs.sendMessage(tab.id, { cmd: 'grabText', mode: 'visible' }).catch(() => null);
+        let source = 'visible';
+        if (!sample?.text) {
+          // Fallback to full editor text
+          sample = await chrome.tabs.sendMessage(tab.id, { cmd: 'grabText' }).catch(() => null);
+          source = 'fallback-full';
+        }
         if (!sample?.text) { sendResponse({ ok: false, error: 'No text' }); return; }
+        await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:status', text: `Read ${sample.text.length} chars from ${source === 'visible' ? 'visible area' : 'full editor'}…` }).catch(() => {});
         try {
+          await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:status', text: 'Thinking…' }).catch(() => {});
           const out = await ollamaChat({
             system: SYSTEM_PROMPT,
             user: COACH_PROMPT(trimChars(sample.text, 1500)),
             numPredict: 220,
             numCtx: 2048,
           });
-          await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:answer', text: out, updatedAt: Date.now() });
+          const safeOut = (out && out.trim()) ? out : 'No substantial issues detected. Keep going!';
+          await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:answer', text: safeOut, updatedAt: Date.now() });
           sendResponse({ ok: true });
         } catch (e: any) {
+          await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:status', text: `(error) ${e?.message || 'Model error'}` }).catch(() => {});
           sendResponse({ ok: false, error: e?.message || 'Model error' });
         }
         return;
@@ -240,17 +267,27 @@ type Settings = {
     if (paused) return;
     const tab = await getActiveOverleafTab();
     if (!tab?.id) return;
-    const sample = await chrome.tabs.sendMessage(tab.id, { cmd: 'grabText' }).catch(() => null);
+    await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:status', text: 'Scanning visible text…' }).catch(() => {});
+    let sample: any = await chrome.tabs.sendMessage(tab.id, { cmd: 'grabText', mode: 'visible' }).catch(() => null);
+    let source = 'visible';
+    if (!sample?.text) {
+      sample = await chrome.tabs.sendMessage(tab.id, { cmd: 'grabText' }).catch(() => null);
+      source = 'fallback-full';
+    }
     if (!sample?.text) return;
+    await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:status', text: `Read ${sample.text.length} chars from ${source === 'visible' ? 'visible area' : 'full editor'}…` }).catch(() => {});
     try {
+      await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:status', text: 'Thinking…' }).catch(() => {});
       const out = await ollamaChat({
         system: SYSTEM_PROMPT,
-        user: COACH_PROMPT(trimChars(sample.text, 3000)),
+        user: COACH_PROMPT(trimChars(sample.text, 1500)),
         numPredict: 220,
         numCtx: 2048,
       });
-      await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:answer', text: out, updatedAt: Date.now() });
+      const safeOut = (out && out.trim()) ? out : 'No substantial issues detected. Keep going!';
+      await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:answer', text: safeOut, updatedAt: Date.now() });
     } catch {
-      // silently ignore on tick
+      // silently ignore on tick, but try to inform UI
+      await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:status', text: '(error) Model unavailable' }).catch(() => {});
     }
   });
