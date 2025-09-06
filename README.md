@@ -62,8 +62,8 @@ You should now see WriteTank in your Chrome extensions bar. This is an easy and 
 ### 5. Open Overleaf
 
 1.	Go to Overleaf and open any project
-2.	WriteTank will inject two panels:
--	**Q&A Panel** (bottom-right)
--	**Auto-Coach** Panel (next to it)
+2.	WriteTank will inject a window with navigation buttons for the two panels:
+-	**Q&A Panel**
+-	**Auto-Coach Panel**
 
  **Your locally downloaded gpt-oss:20b model should be working as an API smoothly for this browser extension, particularly designed for academic writing support using LaTeX.**
