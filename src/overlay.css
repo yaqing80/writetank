@@ -6,7 +6,7 @@
     right: 18px;
     bottom: 18px;
     width: 380px;
-    max-height: 52vh;
+    max-height: 60vh;
     background: #0b0b0e;
     color: #eaeaea;
     border: 1px solid #2a2a2e;
@@ -63,14 +63,16 @@
   .wt-content {
     display: flex;
     flex-direction: column;
+    min-height: 0;
   }
   
   /* Ensure Q&A content area has proper flex layout */
   #wt-qa-content {
     display: flex;
     flex-direction: column;
-    flex-grow: 1;
+    flex: 1 1 auto;
     overflow: hidden;
+    min-height: 0;
   }
   
   #wt-panel textarea {
@@ -85,6 +87,7 @@
     font-size: 12px;
     min-height: 40px;
     max-height: 80px;
+    flex-shrink: 0;
   }
   
   .wt-row {
@@ -93,6 +96,7 @@
     align-items: center;
     gap: 8px;
     padding: 6px 10px;
+    flex-shrink: 0;
   }
   
   .wt-coach-buttons {
@@ -111,6 +115,7 @@
     border-radius: 6px;
     font-size: 11px;
     position: relative;
+    flex-shrink: 0;
   }
   
   .wt-preview::before {
@@ -196,7 +201,7 @@
     border: 1px solid #23232a;
     border-radius: 8px;
     overflow: auto;
-    max-height: 32vh;
+    max-height: 28vh;
     min-height: 40px;
     white-space: pre-wrap;
     /* Grow to take remaining space so the buttons row stays visible */
@@ -205,14 +210,31 @@
   
   /* Ensure Q&A answer area can scroll while keeping copy button visible */
   #wt-a {
-    flex-grow: 1;
+    flex: 1 1 auto;
     overflow: auto;
+    min-height: 40px;
+    max-height: 32vh;
   }
 
   /* Smaller font for Q&A and Coach output */
   #wt-a, #wt-coach-out {
     font-size: 12px;
     line-height: 1.45;
+  }
+  
+  /* Ensure copy button is always visible */
+  #wt-copy {
+    position: relative;
+    z-index: 1;
+  }
+  
+  /* Ensure the copy button row is always visible at the bottom */
+  #wt-qa-content .wt-row:last-child {
+    position: sticky;
+    bottom: 0;
+    background: #0b0b0e;
+    border-top: 1px solid #2a2a2e;
+    margin-top: auto;
   }
   
   .wt-toast {

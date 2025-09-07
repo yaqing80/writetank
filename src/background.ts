@@ -29,7 +29,9 @@ type Settings = {
   - Keep answers concise (≤10 lines).
   - Prefer \\paragraph{} and \\begin{itemize}...\\end{itemize}, but only use LaTeX format if needed to.
   - Make sure syntax and grammar are correct.
-  - If an answer started with \\begin{itemize}, make sure it ends with \\end{itemize}.
+  - CRITICAL: If an answer starts with \\begin{itemize}, it MUST end with \\end{itemize}.
+  - CRITICAL: All LaTeX environments must be properly closed.
+  - CRITICAL: Always verify that every \\begin{...} has a corresponding \\end{...}.
   - Use \\cite{TODO} / \\ref{TODO} placeholders when needed.
   `.trim();
   
@@ -44,6 +46,12 @@ type Settings = {
   If the question is about LaTeX formatting, output LaTeX code.
   If the question is about the content or meaning, answer naturally.
   Keep answers concise (≤10 lines).
+  Give answers that can be copied and pasted into the Overleaf editor.
+  
+  CRITICAL LaTeX Rules:
+  - If an answer starts with \\begin{itemize}, it MUST end with \\end{itemize}.
+  - All LaTeX environments must be properly closed.
+  - Ensure all LaTeX syntax is complete and valid.
   `.trim();
   
   function COACH_PROMPT(snippet: string): string {
@@ -75,15 +83,18 @@ type Settings = {
 
   function COACH_PROMPT_EXPAND(snippet: string): string {
     return `
-  You are a concise writing coach. Produce only a polished LaTeX paragraph (≤10–12 lines) that addresses the main issues found in the snippet. Do NOT quote or reuse the user's sentences verbatim; write generalized guidance phrased as a paragraph, not a list.
+  You are a detailed writing coach. Produce a comprehensive LaTeX paragraph that thoroughly addresses the main issues found in the snippet. Do NOT quote or reuse the user's sentences verbatim; write generalized guidance phrased as a paragraph, not a list.
   
   Snippet:
   ${snippet}
   
   Output:
-  - One LaTeX paragraph capturing suggested improvements and rationale.
+  - One comprehensive LaTeX paragraph capturing detailed suggested improvements and rationale.
   - Use TODO notes for missing \\label/\\ref/\\cite.
   - No bullets, no extra sections.
+  - Do not stop in the middle of a sentence, make sure every sentence is complete.
+  - Provide thorough analysis with specific, actionable feedback.
+  - Always give a more detailed analysis, do not just repeat saying "well done" or "keep going".
   `.trim();
   }
 
@@ -169,6 +180,55 @@ type Settings = {
   
   // --- Utilities
   
+  // Trim trailing partial sentence; keep up to last terminal punctuation
+  function ensureCompleteSentences(text: string): string {
+    if (!text) return text;
+    const terminals = ['.', '!', '?'];
+    let last = -1;
+    for (const t of terminals) {
+      const idx = text.lastIndexOf(t);
+      if (idx > last) last = idx;
+    }
+    if (last === -1) return text;
+    // Include any trailing closing quotes/brackets after terminal
+    let end = last + 1;
+    const closers = [')', ']', '}', '”', '’', '"', "'"];
+    while (end < text.length && closers.includes(text[end])) end++;
+    return text.slice(0, end).trim();
+  }
+  
+  // Ensure LaTeX environments are properly closed
+  function ensureLatexCompleteness(text: string): string {
+    if (!text) return text;
+    
+    // Check for common LaTeX environments
+    const environments = ['itemize', 'enumerate', 'description', 'equation', 'align', 'figure', 'table'];
+    let result = text;
+    let wasFixed = false;
+    
+    for (const env of environments) {
+      const openPattern = new RegExp(`\\\\begin\\{${env}\\}`, 'g');
+      const closePattern = new RegExp(`\\\\end\\{${env}\\}`, 'g');
+      
+      const openCount = (result.match(openPattern) || []).length;
+      const closeCount = (result.match(closePattern) || []).length;
+      
+      // If we have more opening tags than closing tags, add the missing ones
+      if (openCount > closeCount) {
+        const missing = openCount - closeCount;
+        result += '\n' + `\\end{${env}}`.repeat(missing);
+        wasFixed = true;
+        console.log(`WriteTank: Fixed ${missing} missing \\end{${env}} tag(s)`);
+      }
+    }
+    
+    if (wasFixed) {
+      console.log('WriteTank: LaTeX completeness check completed - all environments now properly closed');
+    }
+    
+    return result;
+  }
+  
   async function getSettings(): Promise<Settings> {
     const s = await chrome.storage.local.get(DEFAULTS);
     return { ...DEFAULTS, ...s };
@@ -225,7 +285,7 @@ type Settings = {
           top_p: 0.9,
           repeat_penalty: 1.1,
           // Optional stop sequences to cut tails
-          stop: ["\\end{itemize}\n\n", "\n\n\n"]
+          stop: ["\n\n\n"]
         },
       }),
     });
@@ -238,7 +298,7 @@ type Settings = {
   async function ollamaChatStream({
     system,
     user,
-    numPredict = 100,
+    numPredict = 200,
     numCtx = 2048,
     onDelta,
   }: {
@@ -267,7 +327,7 @@ type Settings = {
           temperature: 0.2,
           top_p: 0.9,
           repeat_penalty: 1.1,
-          stop: ["\\end{itemize}\n\n", "\n\n\n"]
+          stop: ["\n\n\n"]
         },
       }),
     });
@@ -371,8 +431,11 @@ type Settings = {
               }
             },
           });
-          console.log('QA Answer:', streamedOutput);
-          sendResponse({ ok: true, text: streamedOutput });
+          
+          // Ensure LaTeX completeness before sending final response
+          const finalOutput = ensureLatexCompleteness(streamedOutput);
+          console.log('QA Answer:', finalOutput);
+          sendResponse({ ok: true, text: finalOutput });
         } catch (e: any) {
           console.error('QA Error:', e);
           sendResponse({ ok: false, error: e?.message || 'Model error' });
@@ -385,11 +448,13 @@ type Settings = {
           const out = await ollamaChat({
             system: SYSTEM_PROMPT,
             user: COACH_PROMPT(snippet),
-            numPredict: 100,
+            numPredict: 200,
             numCtx: 2048,
           });
           const safeOut = (out && out.trim()) ? out : 'No substantial issues detected. Keep going!';
-          sendResponse({ ok: true, text: safeOut, updatedAt: Date.now() });
+          const completed = ensureCompleteSentences(safeOut);
+          const finalOut = ensureLatexCompleteness(completed);
+          sendResponse({ ok: true, text: finalOut, updatedAt: Date.now() });
         } catch (e: any) {
           sendResponse({ ok: false, error: e?.message || 'Model error' });
         }
@@ -401,11 +466,13 @@ type Settings = {
           const out = await ollamaChat({
             system: SYSTEM_PROMPT,
             user: COACH_PROMPT_EXPAND(snippet),
-            numPredict: 200,
+            numPredict: 350,
             numCtx: 2048,
           });
           const safeOut = (out && out.trim()) ? out : 'No substantial issues detected. Keep going!';
-          sendResponse({ ok: true, text: safeOut, updatedAt: Date.now() });
+          const completed = ensureCompleteSentences(safeOut);
+          const finalOut = ensureLatexCompleteness(completed);
+          sendResponse({ ok: true, text: finalOut, updatedAt: Date.now() });
         } catch (e: any) {
           sendResponse({ ok: false, error: e?.message || 'Model error' });
         }
@@ -460,7 +527,7 @@ type Settings = {
           await ollamaChatStream({
             system: SYSTEM_PROMPT,
             user: COACH_PROMPT(trimChars(sample.text, 1500)),
-            numPredict: 100,
+            numPredict: 200,
             numCtx: 2048,
             onDelta: (delta: string) => {
               streamedOutput += delta;
@@ -472,7 +539,9 @@ type Settings = {
           
           console.log('Coach: Final output:', streamedOutput);
           const safeOut = (streamedOutput && streamedOutput.trim()) ? streamedOutput : 'No substantial issues detected. Keep going!';
-          await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:answer', text: safeOut, updatedAt: Date.now() });
+          const completed = ensureCompleteSentences(safeOut);
+          const finalOut = ensureLatexCompleteness(completed);
+          await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:answer', text: finalOut, updatedAt: Date.now() });
           sendResponse({ ok: true });
         } catch (e: any) {
           console.error('Coach: Error:', e);
@@ -508,11 +577,13 @@ type Settings = {
       const out = await ollamaChat({
         system: SYSTEM_PROMPT,
         user: COACH_PROMPT(trimChars(sample.text, 1500)),
-        numPredict: 100,
+        numPredict: 200,
         numCtx: 2048,
       });
       const safeOut = (out && out.trim()) ? out : 'No substantial issues detected. Keep going!';
-      await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:answer', text: safeOut, updatedAt: Date.now() });
+      const completed = ensureCompleteSentences(safeOut);
+      const finalOut = ensureLatexCompleteness(completed);
+      await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:answer', text: finalOut, updatedAt: Date.now() });
     } catch {
       // silently ignore on tick, but try to inform UI
       await chrome.tabs.sendMessage(tab.id, { cmd: 'coach:status', text: '(error) Model unavailable' }).catch(() => {});
